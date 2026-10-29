@@ -175,6 +175,85 @@ with tabs[1]:
                         (pid.strip(), pname.strip(), int(crates), int(threshold)))
                 st.success("Inventory record saved.")
                 st.rerun()
+
+    st.markdown("#### Find and edit an existing product")
+    inv_search = st.text_input("Search by Product ID or product name", key="inv_edit_search",
+                               placeholder="e.g. P101 or Cola")
+    inv_all_for_edit = rows("SELECT * FROM inventory ORDER BY product_name")
+    inv_matches = [x for x in inv_all_for_edit
+                   if inv_search.strip().lower() in
+                   (x["product_id"] + " " + x["product_name"]).lower()] if inv_search.strip() else inv_all_for_edit
+    if inv_matches:
+        inv_choice = st.selectbox(
+            "Select product to edit",
+            options=[x["product_id"] for x in inv_matches],
+            format_func=lambda value: next(
+                f'{x["product_id"]} — {x["product_name"]}' for x in inv_matches
+                if x["product_id"] == value),
+            key="inv_edit_choice")
+        inv_selected = next(x for x in inv_matches if x["product_id"] == inv_choice)
+        with st.form(f"edit_inventory_{inv_choice}"):
+            ec1, ec2, ec3, ec4 = st.columns(4)
+            edit_pname = ec1.text_input("Product name", value=inv_selected["product_name"], key=f"inv_name_{inv_choice}")
+            edit_crates = ec2.number_input("Current crates", min_value=0, step=1, value=int(inv_selected["crates"]), key=f"inv_crates_{inv_choice}")
+            edit_threshold = ec3.number_input("Minimum threshold", min_value=0, step=1, value=int(inv_selected["threshold"]), key=f"inv_threshold_{inv_choice}")
+            ec4.text_input("Product ID (fixed)", value=inv_choice, disabled=True, key=f"inv_id_display_{inv_choice}")
+            save_inv = st.form_submit_button("Save product changes")
+            if save_inv:
+                if not edit_pname.strip():
+                    st.error("Product name is required.")
+                else:
+                    execute("UPDATE inventory SET product_name=?, crates=?, threshold=? WHERE product_id=?",
+                            (edit_pname.strip(), int(edit_crates), int(edit_threshold), inv_choice))
+                    st.success("Product updated.")
+                    st.rerun()
+    elif inv_search.strip():
+        st.warning("No products match that search.")
+    else:
+        st.caption("Add a product first to use the editor.")
+
+
+    st.markdown("### Search and Edit Existing Product")
+    search_product = st.text_input("Search by Product ID or Name", key="search_product")
+    products = rows("SELECT * FROM inventory ORDER BY product_name")
+    filtered_products = [
+        p for p in products
+        if search_product.strip().lower() in
+        (p["product_id"] + " " + p["product_name"]).lower()
+    ] if search_product.strip() else products
+
+    if filtered_products:
+        selected_id = st.selectbox(
+            "Select Product",
+            options=[p["product_id"] for p in filtered_products],
+            format_func=lambda pid: next(
+                f'{p["product_id"]} - {p["product_name"]}'
+                for p in filtered_products if p["product_id"] == pid
+            ),
+            key="selected_product"
+        )
+        selected_product = next(p for p in filtered_products if p["product_id"] == selected_id)
+
+        with st.form("edit_product_form"):
+            st.text_input("Product ID", value=selected_product["product_id"], disabled=True)
+            updated_name = st.text_input("Product Name", value=selected_product["product_name"])
+            updated_crates = st.number_input("Current Crates", min_value=0, step=1, value=int(selected_product["crates"]))
+            updated_threshold = st.number_input("Minimum Threshold", min_value=0, step=1, value=int(selected_product["threshold"]))
+            save_product = st.form_submit_button("Save Product Changes")
+
+            if save_product:
+                if not updated_name.strip():
+                    st.error("Product name cannot be empty.")
+                else:
+                    execute(
+                        "UPDATE inventory SET product_name=?, crates=?, threshold=? WHERE product_id=?",
+                        (updated_name.strip(), int(updated_crates), int(updated_threshold), selected_id)
+                    )
+                    st.success("Product updated successfully!")
+                    st.rerun()
+    elif search_product.strip():
+        st.warning("No matching product found.")
+
     inv = bubble_sort_low_stock(rows("SELECT * FROM inventory"))
     if inv:
         df = pd.DataFrame([{"Product ID":x["product_id"],"Product":x["product_name"],"Crates":x["crates"],"Threshold":x["threshold"],"Status":"LOW STOCK" if x["crates"] <= x["threshold"] else "Sufficient"} for x in inv])
@@ -205,6 +284,83 @@ with tabs[2]:
                         (rid.strip(), int(route_crates), destination.strip()))
                 st.success("Route saved.")
                 st.rerun()
+
+    st.markdown("#### Find and edit an existing route")
+    route_search = st.text_input("Search by Route ID or destination", key="route_edit_search",
+                                placeholder="e.g. R01 or North Market")
+    route_all_for_edit = rows("SELECT * FROM routes ORDER BY route_id")
+    route_matches = [x for x in route_all_for_edit
+                     if route_search.strip().lower() in
+                     (x["route_id"] + " " + x["destination"]).lower()] if route_search.strip() else route_all_for_edit
+    if route_matches:
+        route_choice = st.selectbox(
+            "Select route to edit",
+            options=[x["route_id"] for x in route_matches],
+            format_func=lambda value: next(
+                f'{x["route_id"]} — {x["destination"]}' for x in route_matches
+                if x["route_id"] == value),
+            key="route_edit_choice")
+        route_selected = next(x for x in route_matches if x["route_id"] == route_choice)
+        with st.form(f"edit_route_{route_choice}"):
+            er1, er2, er3 = st.columns(3)
+            edit_destination = er1.text_input("Destination", value=route_selected["destination"], key=f"route_dest_{route_choice}")
+            edit_route_crates = er2.number_input("Crates required", min_value=0, step=1, value=int(route_selected["crates"]), key=f"route_crates_{route_choice}")
+            er3.text_input("Route ID (fixed)", value=route_choice, disabled=True, key=f"route_id_display_{route_choice}")
+            save_route = st.form_submit_button("Save route changes")
+            if save_route:
+                if not edit_destination.strip():
+                    st.error("Destination is required.")
+                else:
+                    execute("UPDATE routes SET destination=?, crates=? WHERE route_id=?",
+                            (edit_destination.strip(), int(edit_route_crates), route_choice))
+                    st.success("Route updated.")
+                    st.rerun()
+    elif route_search.strip():
+        st.warning("No routes match that search.")
+    else:
+        st.caption("Add a route first to use the editor.")
+
+
+    st.markdown("### Search and Edit Existing Route")
+    search_route = st.text_input("Search by Route ID or Destination", key="search_route")
+    routes_for_edit = rows("SELECT * FROM routes ORDER BY route_id")
+    filtered_routes = [
+        r for r in routes_for_edit
+        if search_route.strip().lower() in
+        (r["route_id"] + " " + r["destination"]).lower()
+    ] if search_route.strip() else routes_for_edit
+
+    if filtered_routes:
+        selected_route_id = st.selectbox(
+            "Select Route",
+            options=[r["route_id"] for r in filtered_routes],
+            format_func=lambda rid: next(
+                f'{r["route_id"]} - {r["destination"]}'
+                for r in filtered_routes if r["route_id"] == rid
+            ),
+            key="selected_route"
+        )
+        selected_route = next(r for r in filtered_routes if r["route_id"] == selected_route_id)
+
+        with st.form("edit_route_form"):
+            st.text_input("Route ID", value=selected_route["route_id"], disabled=True)
+            updated_destination = st.text_input("Destination", value=selected_route["destination"])
+            updated_route_crates = st.number_input("Crates Required", min_value=0, step=1, value=int(selected_route["crates"]))
+            save_route = st.form_submit_button("Save Route Changes")
+
+            if save_route:
+                if not updated_destination.strip():
+                    st.error("Destination cannot be empty.")
+                else:
+                    execute(
+                        "UPDATE routes SET destination=?, crates=? WHERE route_id=?",
+                        (updated_destination.strip(), int(updated_route_crates), selected_route_id)
+                    )
+                    st.success("Route updated successfully!")
+                    st.rerun()
+    elif search_route.strip():
+        st.warning("No matching route found.")
+
     route_data = selection_sort_routes(rows("SELECT * FROM routes"))
     if route_data:
         df = pd.DataFrame([{"Route ID":x["route_id"],"Destination":x["destination"],"Crates":x["crates"],"Priority":"HIGH DEMAND" if i < max(1, len(route_data)//3) else "Standard","Load flag":"HEAVY ROUTE (>50)" if x["crates"] > 50 else "Within 50 crates"} for i,x in enumerate(route_data)])
@@ -237,6 +393,85 @@ with tabs[3]:
                         (cid.strip(), cname.strip(), float(amount), due.isoformat()))
                 st.success("Customer account saved.")
                 st.rerun()
+
+    st.markdown("#### Find and edit an existing customer account")
+    customer_search = st.text_input("Search by Customer ID or customer name", key="customer_edit_search",
+                                    placeholder="e.g. C101 or Customer A")
+    customers_for_edit = rows("SELECT * FROM ledger ORDER BY customer_name")
+    customer_matches = [x for x in customers_for_edit
+                        if customer_search.strip().lower() in
+                        (x["customer_id"] + " " + x["customer_name"]).lower()] if customer_search.strip() else customers_for_edit
+    if customer_matches:
+        customer_choice = st.selectbox(
+            "Select customer account",
+            options=[x["customer_id"] for x in customer_matches],
+            format_func=lambda value: next(
+                f'{x["customer_id"]} — {x["customer_name"]}' for x in customer_matches
+                if x["customer_id"] == value),
+            key="customer_edit_choice")
+        customer_selected = next(x for x in customer_matches if x["customer_id"] == customer_choice)
+        with st.form(f"edit_customer_{customer_choice}"):
+            cc1, cc2 = st.columns(2)
+            edit_customer_name = cc1.text_input("Customer name", value=customer_selected["customer_name"], key=f"customer_name_{customer_choice}")
+            edit_amount = cc2.number_input("Outstanding amount (₹)", min_value=0.0, step=100.0, value=float(customer_selected["amount_due"]), key=f"customer_amount_{customer_choice}")
+            edit_due = st.date_input("Payment due date", value=date.fromisoformat(customer_selected["due_date"]), key=f"customer_due_{customer_choice}")
+            st.text_input("Customer ID (fixed)", value=customer_choice, disabled=True, key=f"customer_id_display_{customer_choice}")
+            save_customer = st.form_submit_button("Save customer changes")
+            if save_customer:
+                if not edit_customer_name.strip():
+                    st.error("Customer name is required.")
+                else:
+                    execute("UPDATE ledger SET customer_name=?, amount_due=?, due_date=? WHERE customer_id=?",
+                            (edit_customer_name.strip(), float(edit_amount), edit_due.isoformat(), customer_choice))
+                    st.success("Customer account updated.")
+                    st.rerun()
+    elif customer_search.strip():
+        st.warning("No customer accounts match that search.")
+    else:
+        st.caption("Add a customer account first to use the editor.")
+
+
+    st.markdown("### Search and Edit Existing Customer")
+    search_customer = st.text_input("Search by Customer ID or Name", key="search_customer")
+    customers_for_edit = rows("SELECT * FROM ledger ORDER BY customer_name")
+    filtered_customers = [
+        c for c in customers_for_edit
+        if search_customer.strip().lower() in
+        (c["customer_id"] + " " + c["customer_name"]).lower()
+    ] if search_customer.strip() else customers_for_edit
+
+    if filtered_customers:
+        selected_customer_id = st.selectbox(
+            "Select Customer",
+            options=[c["customer_id"] for c in filtered_customers],
+            format_func=lambda cid: next(
+                f'{c["customer_id"]} - {c["customer_name"]}'
+                for c in filtered_customers if c["customer_id"] == cid
+            ),
+            key="selected_customer"
+        )
+        selected_customer = next(c for c in filtered_customers if c["customer_id"] == selected_customer_id)
+
+        with st.form("edit_customer_form"):
+            st.text_input("Customer ID", value=selected_customer["customer_id"], disabled=True)
+            updated_customer_name = st.text_input("Customer Name", value=selected_customer["customer_name"])
+            updated_amount = st.number_input("Outstanding Amount (₹)", min_value=0.0, step=100.0, value=float(selected_customer["amount_due"]))
+            updated_due_date = st.date_input("Payment Due Date", value=date.fromisoformat(selected_customer["due_date"]))
+            save_customer = st.form_submit_button("Save Customer Changes")
+
+            if save_customer:
+                if not updated_customer_name.strip():
+                    st.error("Customer name cannot be empty.")
+                else:
+                    execute(
+                        "UPDATE ledger SET customer_name=?, amount_due=?, due_date=? WHERE customer_id=?",
+                        (updated_customer_name.strip(), float(updated_amount), updated_due_date.isoformat(), selected_customer_id)
+                    )
+                    st.success("Customer account updated successfully!")
+                    st.rerun()
+    elif search_customer.strip():
+        st.warning("No matching customer found.")
+
     ledger = rows("SELECT * FROM ledger")
     search_id = st.text_input("Search customer by ID (linear search)")
     if search_id:
@@ -293,6 +528,85 @@ with tabs[4]:
                         (bid.strip(), product.strip(), int(qty), expiry.isoformat()))
                 st.success("Batch saved.")
                 st.rerun()
+
+    st.markdown("#### Find and edit an existing batch")
+    batch_search = st.text_input("Search by Batch ID or product name", key="batch_edit_search",
+                                 placeholder="e.g. B101 or Cola")
+    batches_for_edit = rows("SELECT * FROM batches ORDER BY product_name")
+    batch_matches = [x for x in batches_for_edit
+                     if batch_search.strip().lower() in
+                     (x["batch_id"] + " " + x["product_name"]).lower()] if batch_search.strip() else batches_for_edit
+    if batch_matches:
+        batch_choice = st.selectbox(
+            "Select batch to edit",
+            options=[x["batch_id"] for x in batch_matches],
+            format_func=lambda value: next(
+                f'{x["batch_id"]} — {x["product_name"]}' for x in batch_matches
+                if x["batch_id"] == value),
+            key="batch_edit_choice")
+        batch_selected = next(x for x in batch_matches if x["batch_id"] == batch_choice)
+        with st.form(f"edit_batch_{batch_choice}"):
+            bc1, bc2 = st.columns(2)
+            edit_batch_product = bc1.text_input("Product name", value=batch_selected["product_name"], key=f"batch_product_{batch_choice}")
+            edit_batch_qty = bc2.number_input("Quantity (crates)", min_value=0, step=1, value=int(batch_selected["quantity"]), key=f"batch_qty_{batch_choice}")
+            edit_expiry = st.date_input("Expiry date", value=date.fromisoformat(batch_selected["expiry_date"]), key=f"batch_expiry_{batch_choice}")
+            st.text_input("Batch ID (fixed)", value=batch_choice, disabled=True, key=f"batch_id_display_{batch_choice}")
+            save_batch = st.form_submit_button("Save batch changes")
+            if save_batch:
+                if not edit_batch_product.strip():
+                    st.error("Product name is required.")
+                else:
+                    execute("UPDATE batches SET product_name=?, quantity=?, expiry_date=? WHERE batch_id=?",
+                            (edit_batch_product.strip(), int(edit_batch_qty), edit_expiry.isoformat(), batch_choice))
+                    st.success("Batch updated.")
+                    st.rerun()
+    elif batch_search.strip():
+        st.warning("No batches match that search.")
+    else:
+        st.caption("Add a batch first to use the editor.")
+
+
+    st.markdown("### Search and Edit Existing Batch")
+    search_batch = st.text_input("Search by Batch ID or Product Name", key="search_batch")
+    batches_for_edit = rows("SELECT * FROM batches ORDER BY product_name")
+    filtered_batches = [
+        b for b in batches_for_edit
+        if search_batch.strip().lower() in
+        (b["batch_id"] + " " + b["product_name"]).lower()
+    ] if search_batch.strip() else batches_for_edit
+
+    if filtered_batches:
+        selected_batch_id = st.selectbox(
+            "Select Batch",
+            options=[b["batch_id"] for b in filtered_batches],
+            format_func=lambda bid: next(
+                f'{b["batch_id"]} - {b["product_name"]}'
+                for b in filtered_batches if b["batch_id"] == bid
+            ),
+            key="selected_batch"
+        )
+        selected_batch = next(b for b in filtered_batches if b["batch_id"] == selected_batch_id)
+
+        with st.form("edit_batch_form"):
+            st.text_input("Batch ID", value=selected_batch["batch_id"], disabled=True)
+            updated_batch_product = st.text_input("Product Name", value=selected_batch["product_name"])
+            updated_quantity = st.number_input("Quantity (Crates)", min_value=0, step=1, value=int(selected_batch["quantity"]))
+            updated_expiry_date = st.date_input("Expiry Date", value=date.fromisoformat(selected_batch["expiry_date"]))
+            save_batch = st.form_submit_button("Save Batch Changes")
+
+            if save_batch:
+                if not updated_batch_product.strip():
+                    st.error("Product name cannot be empty.")
+                else:
+                    execute(
+                        "UPDATE batches SET product_name=?, quantity=?, expiry_date=? WHERE batch_id=?",
+                        (updated_batch_product.strip(), int(updated_quantity), updated_expiry_date.isoformat(), selected_batch_id)
+                    )
+                    st.success("Batch updated successfully!")
+                    st.rerun()
+    elif search_batch.strip():
+        st.warning("No matching batch found.")
+
     batch_data = bubble_sort_batches(rows("SELECT * FROM batches"))
     out = []
     for x in batch_data:
